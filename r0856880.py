@@ -13,6 +13,31 @@ def initialize(population_size,number_of_nodes):
     population = np.asarray(population)
     return population
 
+# NIEUW
+# Now includes some local search in order to start out with a better starting population
+def initialize2(population_size,number_of_nodes, alpha, k, distanceMatrix):
+    population = []
+    for i in range(population_size):
+        individual = np.arange(number_of_nodes)
+        np.random.shuffle(individual)
+        if random.random() < alpha:
+            for j in range(k):
+                # possible_better_candidate = np.arange(number_of_nodes)
+                # np.random.shuffle(possible_better_candidate)
+                possible_better_candidate = individual.copy()
+                index1 = random.randint(0, number_of_nodes-1)
+                index2 = random.randint(0, number_of_nodes-1)
+                while(index1 == index2):
+                    index2 = random.randint(0, number_of_nodes - 1)
+                possible_better_candidate[index1], possible_better_candidate[index2] = possible_better_candidate[index2], possible_better_candidate[index1]
+                if length(possible_better_candidate, distanceMatrix) < length(individual, distanceMatrix):
+                    individual = possible_better_candidate.copy()
+        population.append(individual)
+    population = np.asarray(population)
+    return population
+
+
+
 
 ## --------------- Recombination --------------- ##
 def PMX(parent1, parent2):
@@ -45,44 +70,13 @@ def PMX(parent1, parent2):
         p2[temp1], p2[temp2] = p2[temp2], p2[temp1]
     return child1, child2
 
-def PMX2(parent1, parent2, length):
-    child1 = parent1.copy()
-    child2 = parent2.copy()
-    size = min(len(child1), len(child2))
-    p1, p2 = [0] * size, [0] * size
-    # Initialize the position of each indices in the individuals
-    for i in range(size):
-        p1[child1[i]] = i
-        p2[child2[i]] = i
-    # Choose crossover points
-    cxpoint1 = random.randint(0, size-length)
-    # cxpoint2 = random.randint(0, size - 1)
-    cxpoint2 = cxpoint1 + length
-    if cxpoint2 >= cxpoint1:
-        cxpoint2 += 1
-    else:  # Swap the two cx points
-        cxpoint1, cxpoint2 = cxpoint2, cxpoint1
-    # Apply crossover between cx points
-    for i in range(cxpoint1, cxpoint2):
-        # Keep track of the selected values
-        temp1 = child1[i]
-        temp2 = child2[i]
-        # Swap the matched value
-        child1[i], child1[p1[temp2]] = temp2, temp1
-        child2[i], child2[p2[temp1]] = temp1, temp2
-        # Position bookkeeping
-        p1[temp1], p1[temp2] = p1[temp2], p1[temp1]
-        p2[temp1], p2[temp2] = p2[temp2], p2[temp1]
-    return child1, child2
-
-
 # calculates the length of a path
 def length(individual: np.array, distance_matrix: np.array) -> float:
     distance = 0
     size = distance_matrix.shape[0]
     for i in range(size - 1):
-        distance += distance_matrix[individual[i]][individual[i + 1]]
-    distance += distance_matrix[individual[-1]][individual[0]]
+        distance += distance_matrix[int(individual[i])][int(individual[i + 1])]
+    distance += distance_matrix[int(individual[-1])][int(individual[0])]
     return distance
 
 ## --------------- Elimination --------------- ##
@@ -165,7 +159,8 @@ class r0856880:
         file.close()
 
         # Your code here.
-        population = initialize(population_size,distanceMatrix.shape[0])
+        # population = initialize(population_size,distanceMatrix.shape[0])
+        population = initialize2(population_size,distanceMatrix.shape[0], 0.5, 50, distanceMatrix)
         its_start = its
         i = 0
 
@@ -181,21 +176,53 @@ class r0856880:
                 parent2 = selection(population,k, distanceMatrix)
 
                 child1,child2 = PMX(parent1,parent2)
-                # child1, child2 = PMX2(parent1, parent2, 2)
                 offspring[j] = child1
                 offspring[j+1] = child2
+
+            chance_local_search = 0.5
+            generated_by_local_search = 1
 
             # Mutation
             for j in range(len(offspring)):
                 # offspring[j] =mutation(offspring[j],alpha)
                 # NIEUW
                 offset = (its_start-its)*alpha/its_start
-                offspring[j] = mutation(offspring[j], alpha-offset)
+                # offspring[j] = mutation(offspring[j], alpha-offset)
+                # NIEUW
+                # perform local search after variation
+                mutated = mutation(offspring[j], alpha-offset)
+                if random.random() < chance_local_search:
+                    for z in range(generated_by_local_search):
+                        possible_better_candidate = mutated.copy()
+                        index1 = random.randint(0, distanceMatrix.shape[0] - 1)
+                        index2 = random.randint(0, distanceMatrix.shape[0] - 1)
+                        while index1 == index2:
+                            index2 = random.randint(0, distanceMatrix.shape[0] - 1)
+                        possible_better_candidate[index1], possible_better_candidate[index2] = possible_better_candidate[index2], possible_better_candidate[index1]
+                        if length(possible_better_candidate, distanceMatrix) < length(mutated, distanceMatrix):
+                            mutated = possible_better_candidate.copy()
+                offspring[j] = mutated
+
 
             for j in range(len(population)):
                 # NIEUW
                 offset = (its_start - its) * alpha / its_start
-                population[j] =mutation(population[j],alpha-offset)
+                # population[j] =mutation(population[j],alpha-offset)
+                # NIEUW
+                # perform local search after variation
+                mutated = mutation(population[j], alpha - offset)
+                if random.random() < chance_local_search:
+                    for z in range(generated_by_local_search):
+                        possible_better_candidate = mutated.copy()
+                        index1 = random.randint(0, distanceMatrix.shape[0] - 1)
+                        index2 = random.randint(0, distanceMatrix.shape[0] - 1)
+                        while (index1 == index2):
+                            index2 = random.randint(0, distanceMatrix.shape[0] - 1)
+                        possible_better_candidate[index1], possible_better_candidate[index2] = possible_better_candidate[index2], possible_better_candidate[index1]
+                        if length(possible_better_candidate, distanceMatrix) < length(mutated, distanceMatrix):
+                            mutated = possible_better_candidate.copy()
+                population[j] = mutated
+
 
             # Elimination
             population = elimination(population,offspring,distanceMatrix,population_size)
@@ -221,7 +248,8 @@ TSP = r0856880()
 TSP.optimize("tour29.csv",50,500,25,10,0.5)
 
 # parent1 = np.array([1, 5, 3, 2, 4])
-# parent2 = np.array([2, 3, 1, 4, 5])
+# parent2 = np.arange(5)
+# print(parent2)
 # print(parent1)
 # PMX(parent1,parent2)
 #child1, child2 = PMX(parent1,parent2)
