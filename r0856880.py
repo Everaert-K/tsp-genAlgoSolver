@@ -3,8 +3,20 @@ import numpy as np
 import random
 import math
 
+import sys
+import time
+
 ## --------------- Initialization --------------- ##
 def initialize(population_size,number_of_nodes):
+
+    '''
+    initializes a random population of size population_size where each individual contains number_of_nodes nodes
+
+    :param population_size: integer, determines the number of individual inside the population
+    :param number_of_nodes: integer, the number of nodes out of which each individual will exist
+    :return: population, numpy array
+    '''
+
     population = []
     for i in range(population_size):
         individual = np.arange(number_of_nodes)
@@ -14,33 +26,69 @@ def initialize(population_size,number_of_nodes):
     return population
 
 # NIEUW
+def local_search(individual, k, depth, distanceMatrix):
+    number_of_nodes = len(individual)
+    individual_copy = individual.copy()
+    for d in range(depth):
+        temp_indiv = individual_copy.copy()
+        for j in range(k):
+            possible_better_candidate = temp_indiv.copy()
+            index1 = random.randint(0, number_of_nodes - 1)
+            index2 = random.randint(0, number_of_nodes - 1)
+            while (index1 == index2):
+                index2 = random.randint(0, number_of_nodes - 1)
+            possible_better_candidate[index1], possible_better_candidate[index2] = possible_better_candidate[index2], possible_better_candidate[index1]
+            if length(possible_better_candidate, distanceMatrix) < length(individual_copy, distanceMatrix):
+                individual_copy = possible_better_candidate.copy()
+    return individual_copy
+
+# NIEUW
 # Now includes some local search in order to start out with a better starting population
 def initialize2(population_size,number_of_nodes, alpha, k, distanceMatrix):
+
+    '''
+    initializes a random population of size population_size where each individual contains number_of_nodes nodes, in addition to this
+    it performes some local search on certain idividuals in order to start out with a better initial population
+
+    :param population_size: integer, determines the number of individual inside the population
+    :param number_of_nodes: integer, the number of nodes out of which each individual will exist
+    :param alpha: float, determines the chance for which local search will be applied to an individual
+    :param k: integer, the number of random variations to which an individual will be compared during the local search
+    :param distanceMatrix: numpy array, a numpy array of numpy arrays that contains all the distances between the different nodes
+    :return: population, numpy array
+    '''
+
     population = []
     for i in range(population_size):
         individual = np.arange(number_of_nodes)
         np.random.shuffle(individual)
         if random.random() < alpha:
-            for j in range(k):
-                # possible_better_candidate = np.arange(number_of_nodes)
-                # np.random.shuffle(possible_better_candidate)
-                possible_better_candidate = individual.copy()
-                index1 = random.randint(0, number_of_nodes-1)
-                index2 = random.randint(0, number_of_nodes-1)
-                while(index1 == index2):
-                    index2 = random.randint(0, number_of_nodes - 1)
-                possible_better_candidate[index1], possible_better_candidate[index2] = possible_better_candidate[index2], possible_better_candidate[index1]
-                if length(possible_better_candidate, distanceMatrix) < length(individual, distanceMatrix):
-                    individual = possible_better_candidate.copy()
+            # if you come here then local search will be performes
+            #for j in range(k):
+            #    possible_better_candidate = individual.copy()
+            #    index1 = random.randint(0, number_of_nodes-1)
+            #    index2 = random.randint(0, number_of_nodes-1)
+            #    while(index1 == index2):
+            #        index2 = random.randint(0, number_of_nodes - 1)
+            #    possible_better_candidate[index1], possible_better_candidate[index2] = possible_better_candidate[index2], possible_better_candidate[index1]
+            #    if length(possible_better_candidate, distanceMatrix) < length(individual, distanceMatrix):
+            #        individual = possible_better_candidate.copy()
+            individual = local_search(individual, k, 3,distanceMatrix) # 3 determines the depth of local search
         population.append(individual)
     population = np.asarray(population)
     return population
 
 
-
-
 ## --------------- Recombination --------------- ##
 def PMX(parent1, parent2):
+
+    '''
+    Performs the recombination step of the algorithm, it swaps all points between 2 cutpoints and then solves inconsistencies
+
+    :param parent1: numpy array, The first individual
+    :param parent2: numpy array, the second individual
+    :return: child1, child2: numpy array, the 2 generated children
+    '''
 
     child1 = parent1.copy()
     child2 = parent2.copy()
@@ -70,8 +118,68 @@ def PMX(parent1, parent2):
         p2[temp1], p2[temp2] = p2[temp2], p2[temp1]
     return child1, child2
 
+def PMX2(parent1, parent2, alpha):
+
+    '''
+    Performs the recombination step of the algorithm, it swaps all points between 2 cutpoints and then solves inconsistencies
+    it uses an extra parameter that determines the maximum length of the distance between the 2 cutpoints
+
+    :param parent1: numpy array, The first individual
+    :param parent2: numpy array, the second individual
+    :param alpha: float, indicates what percentage of the size can be swapped between the 2 parents
+    :return: child1, child2: numpy array, the 2 generated children
+    '''
+
+    child1 = parent1.copy()
+    child2 = parent2.copy()
+    size = len(child1)
+
+    # determines the maximum number of places that can be between cxpoint1 and cxpoint2
+    # alpha starts as 1
+    max_between = (size-1)*alpha
+
+    p1, p2 = [0] * size, [0] * size
+    # Initialize the position of each indices in the individuals
+    for i in range(size):
+        p1[child1[i]] = i
+        p2[child2[i]] = i
+    # Choose crossover points
+
+    cxpoint1 = random.randint(0, size)
+    cxpoint2 = random.randint(0, size - 1)
+
+    if cxpoint2 >= cxpoint1:
+        cxpoint2 += 1 # ???
+    else:  # Swap the two cx points
+        cxpoint1, cxpoint2 = cxpoint2, cxpoint1
+    # Apply crossover between cx points
+
+    if (cxpoint2-cxpoint1-1)>max_between:
+        cxpoint2 = cxpoint1 + max_between + 1
+
+    for i in range(cxpoint1, cxpoint2):
+        # Keep track of the selected values
+        temp1 = child1[i]
+        temp2 = child2[i]
+        # Swap the matched value
+        child1[i], child1[p1[temp2]] = temp2, temp1
+        child2[i], child2[p2[temp1]] = temp1, temp2
+        # Position bookkeeping
+        p1[temp1], p1[temp2] = p1[temp2], p1[temp1]
+        p2[temp1], p2[temp2] = p2[temp2], p2[temp1]
+    return child1, child2
+
 # calculates the length of a path
 def length(individual: np.array, distance_matrix: np.array) -> float:
+
+    '''
+    returns the length of an individual
+
+    :param individual: numpy array
+    :param distance_matrix: numpy array, a numpy array of numpy arrays that contains all the distances between the different nodes
+    :return: distance, integer
+    '''
+
     distance = 0
     size = distance_matrix.shape[0]
     for i in range(size - 1):
@@ -81,6 +189,17 @@ def length(individual: np.array, distance_matrix: np.array) -> float:
 
 ## --------------- Elimination --------------- ##
 def elimination(population: np.array, offspring: np.array, distance_matrix: np.array, population_size: int) -> np.array:
+
+    '''
+    The elimination step only keep the (population_size) best individuals for the new population
+
+    :param population: numpy array, contains the individuals of the current population
+    :param offspring: numpy array, contains the individuals generated by recombination of the current population
+    :param distance_matrix: numpy array, a numpy array of numpy arrays that contains all the distances between the different nodes
+    :param population_size: integer, represents the number of individuals that a population contains
+    :return: the new population, numpy array
+    '''
+
     combined = np.concatenate((population, offspring), axis=0)
     combined = list(combined.astype(int))
     combined.sort(key=lambda individual: length(individual, distance_matrix))
@@ -118,17 +237,6 @@ def mutation(individual: np.array, alpha: float) -> np.array:
     individual[first_index:first_index + subset_size] = individual[offset:offset + subset_size]
     individual[offset:offset + subset_size] = temp
 
-    '''
-    possible alternative:
-    while random.random() < alpha:
-        first_index = random.randrange(individual_size)
-        second_index = random.randrange(individual_size)
-        temp = individual[first_index]
-        individual[first_index] = individual[second_index]
-        individual[second_index] = temp
-    return individual
-    '''
-
     return individual[first_index:first_index + individual_size]
 
 ## --------------- Selection --------------- ##
@@ -153,12 +261,17 @@ class r0856880:
 
     # The evolutionary algorithm's main loop
     def optimize(self, filename, population_size, its, recom_its, k,alpha):
+
         # Read distance matrix from file.
         file = open(filename)
         distanceMatrix = np.loadtxt(file, delimiter=",")
         file.close()
 
         # Your code here.
+
+        # if timeLeft >= 150 then you should take 10 best and start doing less mutation in order to recombine
+        timeLeft = 300.0 # initialize on 5 minutes
+
         # population = initialize(population_size,distanceMatrix.shape[0])
         population = initialize2(population_size,distanceMatrix.shape[0], 0.5, 50, distanceMatrix)
         its_start = its
@@ -175,7 +288,7 @@ class r0856880:
                 parent1 = selection(population,k, distanceMatrix)
                 parent2 = selection(population,k, distanceMatrix)
 
-                child1,child2 = PMX(parent1,parent2)
+                child1,child2 = PMX2(parent1,parent2, 1-((its_start-its)/its_start))
                 offspring[j] = child1
                 offspring[j+1] = child2
 
@@ -184,10 +297,8 @@ class r0856880:
 
             # Mutation
             for j in range(len(offspring)):
-                # offspring[j] =mutation(offspring[j],alpha)
                 # NIEUW
                 offset = (its_start-its)*alpha/its_start
-                # offspring[j] = mutation(offspring[j], alpha-offset)
                 # NIEUW
                 # perform local search after variation
                 mutated = mutation(offspring[j], alpha-offset)
@@ -203,11 +314,19 @@ class r0856880:
                             mutated = possible_better_candidate.copy()
                 offspring[j] = mutated
 
-
-            for j in range(len(population)):
+            # don't mutate the best topPercent of the previous population
+            sorted(population, key=lambda individual: length(individual, distanceMatrix))
+            if timeLeft <= 150.0:
+                # startIndex = int(0.1*population_size)
+                startIndex = int(0.05 * population_size)
+            else:
+                if length(population[0],distanceMatrix) == np.inf:
+                    startIndex = max(2,int(0.005 * population_size))
+                else:
+                    startIndex = int(0.05 * population_size)
+            for j in range(startIndex, len(population)):
                 # NIEUW
                 offset = (its_start - its) * alpha / its_start
-                # population[j] =mutation(population[j],alpha-offset)
                 # NIEUW
                 # perform local search after variation
                 mutated = mutation(population[j], alpha - offset)
@@ -231,30 +350,26 @@ class r0856880:
             bestSolution = population[0]
             bestObjective = length(bestSolution, distanceMatrix)
             meanObjective = np.average([length(individual, distanceMatrix) for individual in population])
-            # Call the reporter with:
-            #  - the mean objective function value of the population
-            #  - the best objective function value of the population
-            #  - a 1D numpy array in the cycle notation containing the best solution
-            #    with city numbering starting from 0
-            # timeLeft = self.reporter.report(meanObjective, bestObjective, bestSolution)
-            # if timeLeft < 0:
-            #    break
+
+            timeLeft = self.reporter.report(meanObjective, bestObjective, bestSolution)
+            if timeLeft < 0:
+                break
             i+=1
 
         return 0
 
 
 TSP = r0856880()
-TSP.optimize("tour29.csv",50,500,25,10,0.5)
+# def optimize(filename, population_size, its, recom_its, k,alpha):
+TSP.optimize("tour29.csv",75,5000000,50,10,0.5)
 
-# parent1 = np.array([1, 5, 3, 2, 4])
-# parent2 = np.arange(5)
-# print(parent2)
-# print(parent1)
-# PMX(parent1,parent2)
-#child1, child2 = PMX(parent1,parent2)
-#print(child1)
-#print(child2)
+
+
+
+
+
+
+
 
 
 
